@@ -1,0 +1,59 @@
+---
+title: "all_of_us_lifestyle"
+author: "Danning Tian (dt2354)"
+date: "7/27/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(bigrquery)
+
+# This query represents dataset "Survey" for domain "survey" and was generated for All of Us Controlled Tier Dataset v5
+dataset_83464725_survey_sql <- paste("
+    SELECT
+        answer.person_id,
+        answer.survey_datetime,
+        answer.survey,
+        answer.question_concept_id,
+        answer.question,
+        answer.answer_concept_id,
+        answer.answer,
+        answer.survey_version_concept_id,
+        answer.survey_version_name  
+    FROM
+        `ds_survey` answer   
+    WHERE
+        (
+            question_concept_id IN (
+                SELECT
+                    DISTINCT(question_concept_id) as concept_id  
+                FROM
+                    `ds_survey` 
+            )
+        )", sep="")
+
+# Formulate a Cloud Storage destination path for the data exported from BigQuery.
+# NOTE: By default data exported multiple times on the same day will overwrite older copies.
+#       But data exported on a different days will write to a new location so that historical
+#       copies can be kept as the dataset definition is changed.
+survey_83464725_path <- file.path(
+  Sys.getenv("WORKSPACE_BUCKET"),
+  "bq_exports",
+  Sys.getenv("OWNER_EMAIL"),
+  strftime(lubridate::now(), "%Y%m%d"),  # Comment out this line if you want the export to always overwrite.
+  "survey_83464725",
+  "survey_83464725_*.csv")
+message(str_glue('The data will be written to {survey_83464725_path}. Use this path when reading ',
+                 'the data into your notebooks in the future.'))
+
+# Perform the query and export the dataset to Cloud Storage as CSV files.
+# NOTE: You only need to run `bq_table_save` once. After that, you can
+#       just read data from the CSVs in Cloud Storage.
+bq_table_save(
+  bq_dataset_query(Sys.getenv("WORKSPACE_CDR"), dataset_83464725_survey_sql, billing = Sys.getenv("GOOGLE_PROJECT")),
+  survey_83464725_path,
+  destination_format = "CSV")
+
+
+```
